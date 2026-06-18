@@ -23,11 +23,22 @@ export class BackupWorkflow extends WorkflowEntrypoint<Env, BackupWorkflowParams
 		if (!acquired) return;
 
 		try {
-			const scope = await step.do('discover-scope', async () => {
-				const graph = createGraphClient(this.env);
-				const [users, sites] = await Promise.all([graph.listUsers(tenantId), graph.listSites(tenantId)]);
-				return [...users, ...sites] as Resource[];
-			});
+			const users = await step.do('discover-users', () => createGraphClient(this.env).listUsers(tenantId));
+			const sites = await step.do('discover-sites', () => createGraphClient(this.env).listSites(tenantId));
+
+			// One step per mailbox so each folder-tree walk gets its own subrequest
+			// budget — a single combined step would exceed the ~1,000/invocation
+			// limit at the ~300-mailbox ceiling. Resources accumulate across steps,
+			// so scope.length is known before open-run and the completion counter
+			// needs no change. (Past ~1k mailboxes, move discovery to a queue —
+			// that needs increment-on-discover counting, deferred.)
+			const folders: Resource[] = [];
+			for (const userId of users) {
+				const f = await step.do(`discover-folders:${userId}`, () => createGraphClient(this.env).listMailFolders(tenantId, userId));
+				folders.push(...f);
+			}
+
+			const scope: Resource[] = [...folders, ...sites];
 
 			const runId = await step.do('open-run', async () => {
 				// retention_days lives in the control-plane registry (env.DB); the
