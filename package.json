@@ -6,10 +6,15 @@
 		"deploy": "wrangler deploy",
 		"dev": "wrangler dev",
 		"start": "wrangler dev",
-		"cf-typegen": "wrangler types"
+		"cf-typegen": "wrangler types",
+		"prepare": "husky"
 	},
 	"devDependencies": {
 		"@types/node": "^25.9.3",
+		"husky": "^9.1.7",
+		"lint-staged": "^17.0.7",
+		"oxfmt": "^0.55.0",
+		"oxlint": "^1.70.0",
 		"typescript": "^5.5.2",
 		"wrangler": "^4.101.0"
 	}
