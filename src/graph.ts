@@ -181,10 +181,10 @@ export function createGraphClient(env: Env): GraphClient {
 		// A message moved between folders appears as @removed in the source
 		// folder's delta and an add in the destination folder's — same immutable
 		// id in both, so content dedupe avoids re-download.
-		if (isMail) {
+		if (resource.kind === 'mailfolder') {
 			const page = (await res.json()) as ODataPage<GraphMessage>;
 			return {
-				items: page.value.map((m) => mapMessage(m, resource.ownerId as string)),
+				items: page.value.map((m) => mapMessage(m, resource.ownerId)),
 				nextLink: page['@odata.nextLink'],
 				deltaLink: page['@odata.deltaLink'],
 			};
