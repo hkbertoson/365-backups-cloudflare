@@ -8,11 +8,12 @@ import type { TenantCoordinator } from './coordinator';
 // ============================================================
 
 export type ResourceKind = 'mailfolder' | 'drive' | 'site';
-// For a mailfolder, `id` is the mail-folder id and `ownerId` is the owning
-// mailbox user id (needed to build both the per-folder delta URL and the
-// message content URL). drive/site leave ownerId undefined — their `id` is
-// already the content owner.
-export type Resource = { kind: ResourceKind; id: string; ownerId?: string };
+// A mailfolder Resource MUST carry `ownerId` (the owning mailbox user id) — it
+// builds both the per-folder delta URL and the message content URL. drive/site
+// have no ownerId; their `id` is already the content owner. Modeling this as a
+// discriminated union makes the mailfolder invariant a compile-time guarantee,
+// so resourceKey/deltaRoot can never interpolate an undefined ownerId.
+export type Resource = { kind: 'mailfolder'; id: string; ownerId: string } | { kind: 'drive'; id: string } | { kind: 'site'; id: string };
 
 export type ItemType = 'message' | 'file' | 'event' | 'contact';
 
