@@ -23,8 +23,11 @@ export class BackupWorkflow extends WorkflowEntrypoint<Env, BackupWorkflowParams
 		if (!acquired) return;
 
 		try {
-			const users = await step.do('discover-users', () => createGraphClient(this.env).listUsers(tenantId));
-			const sites = await step.do('discover-sites', () => createGraphClient(this.env).listSites(tenantId));
+			// One client for the whole run so the in-memory token cache is shared
+			// across the discovery steps within an invocation.
+			const graph = createGraphClient(this.env);
+			const users = await step.do('discover-users', () => graph.listUsers(tenantId));
+			const sites = await step.do('discover-sites', () => graph.listSites(tenantId));
 
 			// One step per mailbox so each folder-tree walk gets its own subrequest
 			// budget — a single combined step would exceed the ~1,000/invocation
@@ -34,7 +37,7 @@ export class BackupWorkflow extends WorkflowEntrypoint<Env, BackupWorkflowParams
 			// that needs increment-on-discover counting, deferred.)
 			const folders: Resource[] = [];
 			for (const userId of users) {
-				const f = await step.do(`discover-folders:${userId}`, () => createGraphClient(this.env).listMailFolders(tenantId, userId));
+				const f = await step.do(`discover-folders:${userId}`, () => graph.listMailFolders(tenantId, userId));
 				folders.push(...f);
 			}
 
