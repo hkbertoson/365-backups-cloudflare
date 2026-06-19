@@ -32,7 +32,11 @@ export function openRun(
 	retentionDays: number,
 ): string {
 	const runId = crypto.randomUUID();
-	const startedAt = Date.now();
+	// started_at is the point-in-time anchor; force it strictly past the latest
+	// run so two runs in the same millisecond can't produce a zero-length
+	// [valid_from, valid_to) interval that point-in-time reads would skip.
+	const lastStartedAt = storage.sql.exec<{ v: number }>('SELECT COALESCE(MAX(started_at), 0) AS v FROM runs').toArray()[0]?.v ?? 0;
+	const startedAt = Math.max(Date.now(), lastStartedAt + 1);
 	const expiresAt = startedAt + retentionDays * 86400000;
 
 	storage.sql.exec(
@@ -107,8 +111,8 @@ export function indexItem(storage: DurableObjectStorage, input: IndexItemInput):
 		);
 
 		const row = sql
-			.exec<{ item_uid: number; content_hash: string | null }>(
-				`SELECT i.item_uid AS item_uid, v.content_hash AS content_hash
+			.exec<{ item_uid: number; content_hash: string | null; open_version_id: number | null }>(
+				`SELECT i.item_uid AS item_uid, v.content_hash AS content_hash, v.version_id AS open_version_id
          FROM items i
          LEFT JOIN item_versions v
            ON v.item_uid = i.item_uid AND v.valid_to_ts IS NULL
@@ -119,6 +123,10 @@ export function indexItem(storage: DurableObjectStorage, input: IndexItemInput):
 			.toArray()[0]!;
 		const itemUid = row.item_uid;
 		const currentHash = row.content_hash ?? null;
+		// A tombstone is an open version with a NULL content_hash, so currentHash
+		// alone can't tell "no open version" from "open tombstone". Track the open
+		// version id so re-observing a deleted item still closes its tombstone.
+		const hasOpenVersion = row.open_version_id != null;
 
 		const closeCurrent = () =>
 			sql.exec(
@@ -129,18 +137,17 @@ export function indexItem(storage: DurableObjectStorage, input: IndexItemInput):
 				itemUid,
 			);
 
-		// deletion — close the live version and open a tombstone carrying the
-		// prior content_hash (the FK is NOT NULL; no new blob/R2 write).
+		// deletion — close the live version and open a blobless tombstone. The
+		// tombstone holds NO blob reference, so once the now-closed content
+		// version expires, its blob drops to zero refs and becomes reclaimable.
 		if (item.isDeleted) {
-			if (!currentHash) return; // nothing live to tombstone
+			if (!currentHash) return; // nothing live to tombstone (no version, or already a tombstone)
 			closeCurrent();
-			sql.exec('UPDATE blobs SET ref_count = ref_count + 1 WHERE content_hash = ?', currentHash);
 			sql.exec(
 				`INSERT INTO item_versions
            (item_uid, content_hash, name, parent_path, metadata, valid_from_run, valid_from_ts, is_deleted)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
+         VALUES (?, NULL, ?, ?, ?, ?, ?, 1)`,
 				itemUid,
-				currentHash,
 				item.name ?? null,
 				item.parentPath ?? null,
 				item.metadata ? JSON.stringify(item.metadata) : null,
@@ -155,8 +162,9 @@ export function indexItem(storage: DurableObjectStorage, input: IndexItemInput):
 		// hash unchanged: nothing new to store; last_seen_run already bumped.
 		if (currentHash === contentHash) return;
 
-		// hash changed: close the prior version first.
-		if (currentHash) closeCurrent();
+		// content changed (or the item reappeared after deletion): close whatever
+		// version is open — a prior content version or a tombstone.
+		if (hasOpenVersion) closeCurrent();
 
 		sql.exec(
 			`INSERT INTO blobs (content_hash, r2_key, size, ref_count, created_at)
