@@ -51,7 +51,7 @@ The reverse path: read the D1 index for the chosen restore point, fetch the refe
 
 ## Suggested build order
 
-Prove the inner vertical slice first, before any orchestration: the per-tenant Durable Object plus a single consumer that pulls one mailbox's delta pages into R2 and writes the D1 index, with the token bucket and 429 handling working end to end. That slice contains all the real risk (Graph auth, throttling, streaming large items, cursor handling). Wrapping it in a Workflow and fanning out to N resources is comparatively mechanical afterward.
+Prove the inner vertical slice first, before any orchestration: the per-tenant Durable Object plus a single consumer that pulls one resource's delta pages into R2 and writes the D1 index, with the token bucket and 429 handling working end to end. That slice contains all the real risk (Graph auth, throttling, streaming large items, cursor handling). Wrapping it in a Workflow and fanning out to N resources is comparatively mechanical afterward.
 
 ## Artifacts from this session
 

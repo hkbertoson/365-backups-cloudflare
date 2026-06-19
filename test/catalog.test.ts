@@ -15,6 +15,14 @@ const fileItem = (id: string, version: string): BackupItem => ({
 	name: `${id}.txt`,
 });
 
+const deletedItem = (id: string): BackupItem => ({
+	id,
+	version: '',
+	size: 0,
+	itemType: 'file',
+	isDeleted: true,
+});
+
 const stub = (tenantId: string) => env.TENANT.get(env.TENANT.idFromName(tenantId));
 
 const FUTURE = 9_999_999_999_999; // cutoff well past any real valid_to_ts
@@ -134,5 +142,67 @@ describe('per-tenant catalog (DO SQLite)', () => {
 		// Nothing expired: the single open version is still current.
 		const { expired } = await a.expireVersions(FUTURE, 500);
 		expect(expired).toBe(0);
+	});
+
+	it('tombstones a deleted item and reclaims its blob', async () => {
+		const a = stub('tenant-E');
+		const rk = 'drive:d1';
+
+		const run1 = await a.openRun('full', 1, 90);
+		await a.indexItem({
+			runId: run1,
+			resourceKey: rk,
+			item: fileItem('d', 'v1'),
+			contentHash: 'hd',
+			r2Key: 'kd',
+			size: 10,
+		});
+
+		// Item removed at source: a later run records a deletion tombstone.
+		const run2 = await a.openRun('incremental', 1, 90);
+		await a.indexItem({ runId: run2, resourceKey: rk, item: deletedItem('d') });
+
+		// Deleted as of run2, but still restorable at the earlier run1.
+		expect(await a.pointInTime(run2, rk)).toHaveLength(0);
+		expect((await a.pointInTime(run1, rk)).map((r) => r.graph_item_id)).toEqual(['d']);
+
+		// The tombstone holds no blob reference, so expiring the closed content
+		// version drops the blob to zero refs and frees it for GC.
+		const { dead } = await a.expireVersions(FUTURE, 500);
+		expect(dead.map((d) => d.content_hash)).toContain('hd');
+	});
+
+	it('reopens an item that reappears after deletion', async () => {
+		const a = stub('tenant-F');
+		const rk = 'drive:d1';
+
+		const run1 = await a.openRun('full', 1, 90);
+		await a.indexItem({
+			runId: run1,
+			resourceKey: rk,
+			item: fileItem('r', 'v1'),
+			contentHash: 'r1',
+			r2Key: 'kr1',
+			size: 10,
+		});
+
+		const run2 = await a.openRun('incremental', 1, 90);
+		await a.indexItem({ runId: run2, resourceKey: rk, item: deletedItem('r') });
+
+		// Reappears with fresh content — must open a new current version without
+		// tripping the one-open-version-per-item guard.
+		const run3 = await a.openRun('incremental', 1, 90);
+		await a.indexItem({
+			runId: run3,
+			resourceKey: rk,
+			item: fileItem('r', 'v2'),
+			contentHash: 'r2',
+			r2Key: 'kr2',
+			size: 12,
+		});
+
+		const rows = await a.pointInTime(run3, rk);
+		expect(rows).toHaveLength(1);
+		expect(rows[0].r2_key).toBe('kr2');
 	});
 });

@@ -43,10 +43,13 @@ export class BackupWorkflow extends WorkflowEntrypoint<Env, BackupWorkflowParams
 			const runId = await step.do('open-run', async () => {
 				// retention_days lives in the control-plane registry (env.DB); the
 				// catalog (and the run row) lives in the tenant's DO.
+				// A missing tenant row would yield null; fall back to a safe minimum
+				// rather than 0, which would set expiresAt == startedAt and make the
+				// run GC-eligible the instant it opens.
 				const retentionDays =
 					(await this.env.DB.prepare('SELECT retention_days FROM tenants WHERE tenant_id = ?')
 						.bind(tenantId)
-						.first<number>('retention_days')) ?? 0;
+						.first<number>('retention_days')) ?? 30;
 				return coordinator.openRun('incremental', scope.length, retentionDays);
 			});
 			await step.do('prime-counter', () => coordinator.setOutstanding(scope.length));
