@@ -17,9 +17,9 @@
 CREATE TABLE tenants (
   tenant_id      TEXT PRIMARY KEY,            -- Azure AD tenant GUID
   display_name   TEXT NOT NULL,
-  backup_enabled INTEGER NOT NULL DEFAULT 1,  -- 0/1
+  backup_enabled INTEGER NOT NULL DEFAULT 1 CHECK (backup_enabled IN (0, 1)),  -- 0/1
   schedule_cron  TEXT,                        -- e.g. '0 3 * * *'
-  retention_days INTEGER NOT NULL DEFAULT 90,
+  retention_days INTEGER NOT NULL DEFAULT 90 CHECK (retention_days > 0),
   last_run_id    TEXT,
   last_run_at    INTEGER,
   created_at     INTEGER NOT NULL,

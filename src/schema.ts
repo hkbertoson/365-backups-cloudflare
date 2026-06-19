@@ -75,7 +75,7 @@ CREATE INDEX IF NOT EXISTS idx_items_resource ON items(resource_key);
 CREATE TABLE IF NOT EXISTS item_versions (
   version_id     INTEGER PRIMARY KEY AUTOINCREMENT,
   item_uid       INTEGER NOT NULL,
-  content_hash   TEXT NOT NULL,
+  content_hash   TEXT,                        -- NULL only for deletion tombstones
   name           TEXT,                        -- subject / filename
   parent_path    TEXT,                        -- folder or drive path (restore layout)
   metadata       TEXT,                        -- JSON (from/to/sent_at/...)
@@ -83,7 +83,10 @@ CREATE TABLE IF NOT EXISTS item_versions (
   valid_from_ts  INTEGER NOT NULL,            -- = run.started_at when first observed
   valid_to_run   TEXT,
   valid_to_ts    INTEGER,                     -- NULL = still current
-  is_deleted     INTEGER NOT NULL DEFAULT 0   -- tombstone: removed at source
+  is_deleted     INTEGER NOT NULL DEFAULT 0,  -- tombstone: removed at source
+  -- content-bearing versions must carry a blob; only tombstones may be blobless,
+  -- so a deleted item holds no blob reference and its blob can be reclaimed.
+  CHECK (is_deleted = 1 OR content_hash IS NOT NULL)
 );
 CREATE INDEX IF NOT EXISTS idx_versions_item   ON item_versions(item_uid);
 CREATE INDEX IF NOT EXISTS idx_versions_run    ON item_versions(valid_from_run);
