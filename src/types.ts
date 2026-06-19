@@ -7,8 +7,13 @@ import type { TenantCoordinator } from './coordinator';
 // graph.ts / consumer.ts / workflow.ts / restore.ts.
 // ============================================================
 
-export type ResourceKind = 'mailbox' | 'drive' | 'site';
-export type Resource = { kind: ResourceKind; id: string };
+export type ResourceKind = 'mailfolder' | 'drive' | 'site';
+// A mailfolder Resource MUST carry `ownerId` (the owning mailbox user id) — it
+// builds both the per-folder delta URL and the message content URL. drive/site
+// have no ownerId; their `id` is already the content owner. Modeling this as a
+// discriminated union makes the mailfolder invariant a compile-time guarantee,
+// so resourceKey/deltaRoot can never interpolate an undefined ownerId.
+export type Resource = { kind: 'mailfolder'; id: string; ownerId: string } | { kind: 'drive'; id: string } | { kind: 'site'; id: string };
 
 export type ItemType = 'message' | 'file' | 'event' | 'contact';
 
@@ -44,7 +49,12 @@ export type BackupJob = {
 export const MULTIPART_THRESHOLD = 8 * 1024 * 1024; // stream anything bigger
 export const LEASE_TTL_MS = 6 * 60 * 60 * 1000; // 6h safety net on a stuck run
 
-export const resourceKey = (r: Resource): string => `${r.kind}:${r.id}`;
+// "<kind>:<id>", except mailfolder is "mailfolder:<ownerId>:<folderId>" — folder
+// ids are mailbox-scoped (not tenant-unique), so namespacing by user keeps the
+// key (used as the cursor key, catalog resource_key, and blob-key fragment)
+// unique tenant-wide. Only writeBack splits this, and it reads the user id from
+// item.metadata.ownerId rather than the key.
+export const resourceKey = (r: Resource): string => (r.kind === 'mailfolder' ? `mailfolder:${r.ownerId}:${r.id}` : `${r.kind}:${r.id}`);
 
 // Typed RPC stub for the per-tenant Durable Object. Centralized so callers
 // get TenantCoordinator's method types (the generated binding is not generic).

@@ -17,6 +17,17 @@ const GRAPH = 'https://graph.microsoft.com/v1.0';
 const LOGIN = 'https://login.microsoftonline.com';
 const TOKEN_SKEW_MS = 60_000; // refresh 60s before real expiry
 
+// Outlook immutable ids: message ids survive folder moves between syncs. Must
+// ride EVERY mail request (initial delta, each nextLink/deltaLink follow-up,
+// the $value content fetch) AND the folder enumeration, so the stored folder
+// ids are immutable and match the id type the delta requests are sent under.
+const IMMUTABLE_ID = 'IdType="ImmutableId"';
+// odata.maxpagesize is baked into the issued delta tokens, so it's sent only on
+// the cold-start delta request, never on follow-up pages.
+const MAIL_PAGE_SIZE = 'odata.maxpagesize=50';
+
+type AuthedOpts = { prefer?: string[] };
+
 // KV key holding a tenant's Azure AD app (client) id. The app secret is the
 // single shared Secrets Store binding; the client id can differ per tenant
 // (multi-app deployments) so it lives in KV alongside other tenant config.
@@ -73,6 +84,11 @@ type GraphDriveItem = {
 
 type GraphUser = { id: string; userPrincipalName?: string; mail?: string };
 type GraphSite = { id: string; name?: string; webUrl?: string };
+type GraphMailFolder = { id: string; childFolderCount?: number; isHidden?: boolean };
+
+// The message content fetch ($value) takes the stored immutable id, so it must
+// declare ImmutableId too; drive files take no Prefer header.
+const preferFor = (item: BackupItem): AuthedOpts => (item.itemType === 'message' ? { prefer: [IMMUTABLE_ID] } : {});
 
 export function createGraphClient(env: Env): GraphClient {
 	// Per-tenant token cache. In-memory only: lives for the isolate's lifetime,
@@ -115,10 +131,11 @@ export function createGraphClient(env: Env): GraphClient {
 		return json.access_token;
 	}
 
-	async function authed(tenantId: string, url: string, init: RequestInit = {}): Promise<Response> {
+	async function authed(tenantId: string, url: string, init: RequestInit = {}, opts: AuthedOpts = {}): Promise<Response> {
 		const accessToken = await token(tenantId);
 		const headers = new Headers(init.headers);
 		headers.set('authorization', `Bearer ${accessToken}`);
+		if (opts.prefer?.length) headers.set('prefer', opts.prefer.join(', '));
 		const res = await fetch(url, { ...init, headers });
 		if (!res.ok) throw await graphError(res);
 		return res;
@@ -129,17 +146,11 @@ export function createGraphClient(env: Env): GraphClient {
 	// a cold start (cursor === null).
 	async function deltaRoot(tenantId: string, resource: Resource): Promise<string> {
 		switch (resource.kind) {
-			case 'mailbox':
-				// TODO(correctness): mail delta is documented PER-FOLDER on v1.0
-				// (`/users/{id}/mailFolders/{folderId}/messages/delta`). The
-				// mailbox-wide `/messages/delta` used here is not a documented
-				// delta template and may error against a live tenant. Full-mailbox
-				// coverage requires enumerating the folder hierarchy and tracking
-				// each folder's deltaLink as its own cursor — i.e. a mail folder
-				// should be modeled as its own backup resource. See the handoff
-				// follow-ups. (Consider `Prefer: IdType="ImmutableId"` so message
-				// ids survive folder moves between syncs.)
-				return `${GRAPH}/users/${resource.id}/messages/delta`;
+			case 'mailfolder':
+				// Per-folder mail delta (the only delta Graph documents for mail).
+				// ownerId = mailbox user id, id = folder id. The cold-start Prefer
+				// headers (ImmutableId + page size) are applied in deltaPage.
+				return `${GRAPH}/users/${resource.ownerId}/mailFolders/${resource.id}/messages/delta`;
 			case 'drive':
 				return `${GRAPH}/drives/${resource.id}/root/delta`;
 			case 'site': {
@@ -153,8 +164,13 @@ export function createGraphClient(env: Env): GraphClient {
 	}
 
 	async function deltaPage(tenantId: string, resource: Resource, cursor: string | null): Promise<DeltaPage> {
+		const isMail = resource.kind === 'mailfolder';
+		// Cold start builds the delta root and sets the page size; follow-up pages
+		// reuse the server-issued link but must STILL re-assert ImmutableId (it's
+		// per-request, not baked into the token, unlike odata.maxpagesize).
 		const url = cursor ?? (await deltaRoot(tenantId, resource));
-		const res = await authed(tenantId, url);
+		const prefer = isMail ? (cursor ? [IMMUTABLE_ID] : [IMMUTABLE_ID, MAIL_PAGE_SIZE]) : undefined;
+		const res = await authed(tenantId, url, {}, { prefer });
 
 		// The owning resource id (mailbox user id / drive id) is the delta
 		// request context, not a field on each Graph object. Stamp it onto every
@@ -162,10 +178,13 @@ export function createGraphClient(env: Env): GraphClient {
 		// item alone (the frozen download signature takes no resource).
 		// For a "site" resource, ownerId is the resolved drive id, recoverable
 		// from the driveItem's own parentReference.driveId.
-		if (resource.kind === 'mailbox') {
+		// A message moved between folders appears as @removed in the source
+		// folder's delta and an add in the destination folder's — same immutable
+		// id in both, so content dedupe avoids re-download.
+		if (resource.kind === 'mailfolder') {
 			const page = (await res.json()) as ODataPage<GraphMessage>;
 			return {
-				items: page.value.map((m) => mapMessage(m, resource.id)),
+				items: page.value.map((m) => mapMessage(m, resource.ownerId)),
 				nextLink: page['@odata.nextLink'],
 				deltaLink: page['@odata.deltaLink'],
 			};
@@ -179,7 +198,7 @@ export function createGraphClient(env: Env): GraphClient {
 	}
 
 	async function download(tenantId: string, item: BackupItem): Promise<ArrayBuffer> {
-		const res = await authed(tenantId, contentUrl(tenantId, item));
+		const res = await authed(tenantId, contentUrl(tenantId, item), {}, preferFor(item));
 		return res.arrayBuffer();
 	}
 
@@ -189,25 +208,51 @@ export function createGraphClient(env: Env): GraphClient {
 		// download URL both honor Range, so a failed part can be re-fetched with
 		// a Range header by the caller. We don't pre-range here because the
 		// multipart threshold (8 MiB) is small enough to stream in one GET.
-		const res = await authed(tenantId, contentUrl(tenantId, item));
+		const res = await authed(tenantId, contentUrl(tenantId, item), {}, preferFor(item));
 		// biome-ignore lint: Graph always returns a body for $value/content.
 		return res.body!;
 	}
 
-	async function listUsers(tenantId: string): Promise<Resource[]> {
-		const out: Resource[] = [];
-		let url: string | undefined = `${GRAPH}/users?$select=id,userPrincipalName,mail&$top=999`;
+	// Users are Scope Containers, not Resources: each id expands into mail-folder
+	// Resources (listMailFolders) and — issue #4 — a OneDrive `drive` Resource.
+	async function listUsers(tenantId: string): Promise<string[]> {
+		const out: string[] = [];
+		let url: string | undefined = `${GRAPH}/users?$select=id&$top=999`;
 		while (url) {
 			const res = await authed(tenantId, url);
 			const page = (await res.json()) as ODataPage<GraphUser>;
-			for (const u of page.value) {
-				// One user => one mailbox + one OneDrive. We emit the mailbox here;
-				// the user's OneDrive is enumerable via /users/{id}/drive but is
-				// modeled as a separate "drive" resource the workflow can request.
-				out.push({ kind: 'mailbox', id: u.id });
-			}
+			for (const u of page.value) out.push(u.id);
 			url = page['@odata.nextLink'];
 		}
+		return out;
+	}
+
+	// Enumerate a mailbox's full folder tree as mailfolder Resources. Recurse
+	// childFolders (Graph's $expand=childFolders nests only one level); descend
+	// only where childFolderCount > 0. Starts at the well-known msgfolderroot —
+	// the true top of the tree and itself a delta-able folder. includeHiddenFolders
+	// surfaces system folders so no folder is silently skipped. ImmutableId is
+	// sent so stored folder ids match the id type the per-folder delta is
+	// requested under.
+	async function listMailFolders(tenantId: string, userId: string): Promise<Resource[]> {
+		const out: Resource[] = [{ kind: 'mailfolder', id: 'msgfolderroot', ownerId: userId }];
+		const prefer = [IMMUTABLE_ID];
+
+		const walk = async (folderId: string): Promise<void> => {
+			let url: string | undefined =
+				`${GRAPH}/users/${userId}/mailFolders/${folderId}/childFolders?$select=id,childFolderCount,isHidden&$top=100&includeHiddenFolders=true`;
+			while (url) {
+				const res = await authed(tenantId, url, {}, { prefer });
+				const page = (await res.json()) as ODataPage<GraphMailFolder>;
+				for (const f of page.value) {
+					out.push({ kind: 'mailfolder', id: f.id, ownerId: userId });
+					if ((f.childFolderCount ?? 0) > 0) await walk(f.id);
+				}
+				url = page['@odata.nextLink'];
+			}
+		};
+
+		await walk('msgfolderroot');
 		return out;
 	}
 
@@ -262,8 +307,14 @@ export function createGraphClient(env: Env): GraphClient {
 			// mapped destination folder; read/flag state, categories, and the
 			// sent/received timestamps are best-effort from the MIME headers.
 			// Reconstructing the source folder tree is future work.
+			// Owner is the mailbox user id stamped by mapMessage — not derivable
+			// from the (folder-scoped) resourceKey.
+			const ownerId = item.metadata?.ownerId as string | undefined;
+			if (!ownerId) {
+				throw new GraphError(500, 'missingOwnerId', `item ${item.id} missing ownerId in metadata`);
+			}
 			const buf = body instanceof ArrayBuffer ? body : await streamToBuffer(body);
-			await authed(tenantId, `${GRAPH}/users/${id}/messages`, {
+			await authed(tenantId, `${GRAPH}/users/${ownerId}/messages`, {
 				method: 'POST',
 				headers: { 'content-type': 'text/plain' },
 				body: base64(buf),
@@ -299,6 +350,7 @@ export function createGraphClient(env: Env): GraphClient {
 		download,
 		downloadStream,
 		listUsers,
+		listMailFolders,
 		listSites,
 		writeBack,
 	};
@@ -383,7 +435,8 @@ export interface GraphClient {
 	deltaPage(tenantId: string, resource: Resource, cursor: string | null): Promise<DeltaPage>;
 	download(tenantId: string, item: BackupItem): Promise<ArrayBuffer>;
 	downloadStream(tenantId: string, item: BackupItem): Promise<ReadableStream<Uint8Array>>;
-	listUsers(tenantId: string): Promise<Resource[]>;
+	listUsers(tenantId: string): Promise<string[]>;
+	listMailFolders(tenantId: string, userId: string): Promise<Resource[]>;
 	listSites(tenantId: string): Promise<Resource[]>;
 	writeBack(tenantId: string, resourceKey: string, item: BackupItem, body: ReadableStream<Uint8Array> | ArrayBuffer): Promise<void>;
 }

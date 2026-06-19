@@ -16,12 +16,12 @@
 // INTEGER epoch-ms to match Date.now() in the worker.
 // ============================================================
 export const CATALOG_SCHEMA = `
--- resources — backup targets within the tenant (mailbox / drive / site).
+-- resources — backup targets within the tenant (mailfolder / drive / site).
 -- The authoritative delta CURSOR lives in DO storage (cursor: keys); this
 -- table is a mirror for reporting and scope discovery only.
 CREATE TABLE IF NOT EXISTS resources (
   resource_key      TEXT PRIMARY KEY,         -- '<kind>:<graph_id>'
-  kind              TEXT NOT NULL,            -- mailbox | drive | site
+  kind              TEXT NOT NULL,            -- mailfolder | drive | site
   graph_id          TEXT NOT NULL,
   display_name      TEXT,
   last_full_sync_at INTEGER,
