@@ -23,14 +23,25 @@ function oneMessageBatch(body: BackupJob) {
 	return { batch, ack, retry };
 }
 
+// Drain the per-tenant token bucket until takeToken() actually denies (returns a
+// wait > 0). A fixed call count is timing-sensitive: the bucket refills, so a
+// slow run can leave a token available and miss the denial path under test.
+async function drainUntilDenied(stub: { takeToken: () => Promise<number> }) {
+	for (let i = 0; i < 200; i++) {
+		const waitMs = await stub.takeToken();
+		if (waitMs > 0) return;
+	}
+	throw new Error('Failed to reach token denial within 200 token requests');
+}
+
 describe('consumer flow control (#5)', () => {
 	it('re-enqueues a fresh job on token denial instead of retrying (no budget burn)', async () => {
 		const tenantId = 'tenant-drain';
 		const j = job(tenantId);
 
-		// Drain the per-tenant token bucket (CAP=30) so the next takeToken denies.
+		// Drain the per-tenant token bucket so the next takeToken denies.
 		const stub = env.TENANT.get(env.TENANT.idFromName(tenantId));
-		for (let i = 0; i < 35; i++) await stub.takeToken();
+		await drainUntilDenied(stub);
 
 		const send = vi.fn();
 		const testEnv = { ...env, BACKUP_QUEUE: { send, sendBatch: vi.fn() } } as unknown as Env;
@@ -53,7 +64,7 @@ describe('consumer flow control (#5)', () => {
 		const j = job(tenantId);
 
 		const stub = env.TENANT.get(env.TENANT.idFromName(tenantId));
-		for (let i = 0; i < 35; i++) await stub.takeToken();
+		await drainUntilDenied(stub);
 
 		const send = vi.fn().mockRejectedValue(new Error('queue unavailable'));
 		const testEnv = { ...env, BACKUP_QUEUE: { send, sendBatch: vi.fn() } } as unknown as Env;
