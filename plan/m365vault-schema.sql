@@ -28,10 +28,13 @@ CREATE TABLE tenants (
 );
 
 -- ------------------------------------------------------------
--- resources — backup targets within a tenant (mailbox / drive / site).
--- NOTE: the authoritative delta CURSOR lives in the tenant Durable
--- Object (strong consistency). This table is a mirror for reporting
--- and scope discovery only.
+-- resources — Scope Containers (mailboxes and sites) and their expanded
+-- Resources (drives) within a tenant. Per ADR 0002, a Resource is a
+-- delta-trackable collection; mailboxes/sites are Scope Containers that
+-- expand into Resources during discovery.
+-- NOTE: the authoritative delta CURSOR lives in the TenantCoordinator
+-- Durable Object (strong consistency). This table is a mirror for scope
+-- discovery reporting only.
 -- ------------------------------------------------------------
 CREATE TABLE resources (
   resource_key      TEXT PRIMARY KEY,         -- '<kind>:<graph_id>'  e.g. 'mailbox:abc'

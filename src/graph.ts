@@ -90,6 +90,9 @@ export function createGraphClient(env: Env): GraphClient {
 			throw new GraphError(500, 'configMissing', `no client id in KV for tenant ${tenantId}`);
 		}
 		const clientSecret = await env.GRAPH_APP_SECRET.get();
+		if (!clientSecret) {
+			throw new GraphError(500, 'configMissing', `no client secret in Secrets Store`);
+		}
 
 		const body = new URLSearchParams({
 			grant_type: 'client_credentials',
@@ -241,8 +244,10 @@ export function createGraphClient(env: Env): GraphClient {
 			//    .conflictBehavior; we don't detect or merge concurrent edits
 			//  - the restored item gets a NEW Graph id (ids are immutable)
 			const driveId = kind === 'site' ? await siteDriveId(tenantId, id) : id;
-			const path = item.parentPath ? `${item.parentPath}/${item.name}` : item.name;
-			await authed(tenantId, `${GRAPH}/drives/${driveId}/root:/${encodeURI(path ?? item.id)}:/content`, { method: 'PUT', body });
+			const fileName = item.name ?? item.id;
+			const pathSegments = item.parentPath ? [...item.parentPath.split('/'), fileName] : [fileName];
+			const encodedPath = pathSegments.map((s) => encodeURIComponent(s)).join('/');
+			await authed(tenantId, `${GRAPH}/drives/${driveId}/root:/${encodedPath}:/content`, { method: 'PUT', body });
 			return;
 		}
 
@@ -279,6 +284,9 @@ export function createGraphClient(env: Env): GraphClient {
 		// Owning resource id is stamped into metadata by the delta mappers.
 		// Messages serialize to raw MIME via $value; drive files via /content.
 		const ownerId = item.metadata?.ownerId as string | undefined;
+		if (!ownerId) {
+			throw new GraphError(500, 'missingOwnerId', `item ${item.id} missing ownerId in metadata`);
+		}
 		if (item.itemType === 'message') {
 			return `${GRAPH}/users/${ownerId}/messages/${item.id}/$value`;
 		}
