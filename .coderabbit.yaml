@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 language: en-US
 tone_instructions: ''
 early_access: true
@@ -26,8 +27,23 @@ reviews:
   auto_assign_reviewers: false
   poem: false
   labeling_instructions: []
-  path_filters: []
-  path_instructions: []
+  path_filters:
+    - '!**/pnpm-lock.yaml'
+    - '!worker-configuration.d.ts'
+    - '!**/*.svg'
+  path_instructions:
+    - path: 'src/**/*.ts'
+      instructions: >-
+        Cloudflare Workers (TypeScript). Verify Workers / Durable Objects /
+        Queues / D1 / R2 API usage against current Cloudflare docs (per
+        AGENTS.md) rather than from memory. Follow the ubiquitous language in
+        CONTEXT.md and the decisions in docs/adr/. Code is intended to be
+        self-documenting — flag genuine bugs and contract violations, not
+        missing comments.
+    - path: 'test/**/*.ts'
+      instructions: >-
+        Tests run in workerd via @cloudflare/vitest-pool-workers
+        (vitest.config.mts); bindings come from wrangler.jsonc.
   abort_on_close: true
   disable_cache: false
   auto_review:
@@ -39,12 +55,12 @@ reviews:
     base_branches: []
   finishing_touches:
     docstrings:
-      enabled: true
+      enabled: false
     unit_tests:
       enabled: true
   pre_merge_checks:
     docstrings:
-      mode: warning
+      mode: 'off'
       threshold: 80
     title:
       mode: warning
@@ -77,7 +93,7 @@ reviews:
       enabled_only: false
       level: default
     biome:
-      enabled: true
+      enabled: false
     hadolint:
       enabled: true
     swiftlint:
@@ -128,7 +144,7 @@ reviews:
     pylint:
       enabled: false
     oxc:
-      enabled: false
+      enabled: true
     shopifyThemeCheck:
       enabled: false
     luacheck:
@@ -158,9 +174,9 @@ knowledge_base:
   code_guidelines:
     enabled: true
     filePatterns:
-      - '.github/copilot-instructions.md'
-      - '.cursorrules'
       - 'AGENTS.md'
+      - 'CLAUDE.md'
+      - 'docs/agents/**'
   learnings:
     scope: auto
   issues:
