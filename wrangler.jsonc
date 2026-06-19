@@ -3,22 +3,96 @@
 	"name": "365-backups-cloudflare",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-06-18",
+	"compatibility_flags": ["nodejs_compat"],
 	"observability": {
 		"enabled": true,
+		"head_sampling_rate": 1,
 	},
-	"queues": {
-		"consumers": [
+
+	// Cron — daily backup run (starts Workflows) + weekly retention/GC sweep.
+	"triggers": {
+		"crons": ["0 3 * * *", "0 4 * * 0"],
+	},
+
+	// Workflows — the per-run orchestration brain (durable + resumable).
+	"workflows": [
+		{
+			"name": "backup-workflow",
+			"binding": "BACKUP_WORKFLOW",
+			"class_name": "BackupWorkflow",
+		},
+	],
+
+	// Durable Objects — per-tenant coordinator + Graph rate governor.
+	"durable_objects": {
+		"bindings": [
 			{
-				"queue": "my-queue",
+				"name": "TENANT",
+				"class_name": "TenantCoordinator",
 			},
 		],
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": ["TenantCoordinator"],
+		},
+	],
+
+	// Queues — fan out one job per resource/page; DLQ catches poison items.
+	"queues": {
 		"producers": [
 			{
-				"binding": "MY_QUEUE",
-				"queue": "my-queue",
+				"binding": "BACKUP_QUEUE",
+				"queue": "backup-queue",
+			},
+		],
+		"consumers": [
+			{
+				"queue": "backup-queue",
+				"max_batch_size": 10,
+				"max_batch_timeout": 5,
+				"max_retries": 5,
+				"dead_letter_queue": "backup-dlq",
 			},
 		],
 	},
+
+	// R2 — the foundation: the actual bytes (MIME, files, attachments).
+	"r2_buckets": [
+		{
+			"binding": "BLOBS",
+			"bucket_name": "m365vault-blobs",
+		},
+	],
+
+	// D1 — the control-plane registry (only the `tenants` table). The per-tenant
+	// catalog lives in each TenantCoordinator DO's SQLite (ADR 0003).
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "m365vault-control-plane",
+			"database_id": "REPLACE_WITH_D1_DATABASE_ID",
+			"migrations_dir": "migrations",
+		},
+	],
+
+	// KV — per-tenant config, feature flags, hot lookups (eventually consistent).
+	"kv_namespaces": [
+		{
+			"binding": "CONFIG",
+			"id": "REPLACE_WITH_KV_NAMESPACE_ID",
+		},
+	],
+
+	// Secrets Store — app-registration secret + per-tenant OAuth tokens (encrypted).
+	"secrets_store_secrets": [
+		{
+			"binding": "GRAPH_APP_SECRET",
+			"store_id": "REPLACE_WITH_SECRETS_STORE_ID",
+			"secret_name": "graph-app-secret",
+		},
+	],
+
 	"upload_source_maps": true,
-	"compatibility_flags": ["nodejs_compat"],
 }
