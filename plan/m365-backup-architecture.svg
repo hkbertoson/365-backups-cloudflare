@@ -1,0 +1,146 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="720" viewBox="0 0 1100 720" font-family="Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif">
+  <defs>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.12"/>
+    </filter>
+    <marker id="arr" markerWidth="10" markerHeight="8" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#475569"/>
+    </marker>
+    <marker id="arrG" markerWidth="10" markerHeight="8" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#059669"/>
+    </marker>
+  </defs>
+
+  <rect width="1100" height="720" fill="#fbfbfa"/>
+  <text x="24" y="30" font-size="21" font-weight="700" fill="#0f172a">Microsoft 365 Backup — Cloudflare Architecture (overview)</text>
+
+  <!-- Cloudflare container -->
+  <rect x="24" y="58" width="786" height="632" rx="14" fill="none" stroke="#f97316" stroke-width="1.8" stroke-dasharray="6 5"/>
+  <rect x="44" y="46" width="116" height="25" rx="12" fill="#f97316"/>
+  <text x="102" y="63" font-size="12.5" font-weight="700" fill="#ffffff" text-anchor="middle">Cloudflare</text>
+
+  <!-- M365 container -->
+  <rect x="828" y="58" width="248" height="400" rx="14" fill="#eff6ff" stroke="#2563eb" stroke-width="1.6" stroke-dasharray="6 5"/>
+  <rect x="848" y="46" width="132" height="25" rx="12" fill="#2563eb"/>
+  <text x="914" y="63" font-size="12.5" font-weight="700" fill="#ffffff" text-anchor="middle">Microsoft 365</text>
+
+  <!-- Cron -->
+  <rect x="44" y="96" width="124" height="52" rx="9" fill="#f1f5f9" stroke="#64748b" stroke-width="1.4" filter="url(#sh)"/>
+  <text x="106" y="120" font-size="13" font-weight="700" fill="#334155" text-anchor="middle">Cron Trigger</text>
+  <text x="106" y="137" font-size="10.5" fill="#64748b" text-anchor="middle">nightly schedule</text>
+
+  <!-- Workflows -->
+  <rect x="250" y="92" width="210" height="62" rx="9" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.6" filter="url(#sh)"/>
+  <text x="355" y="118" font-size="14" font-weight="700" fill="#5b21b6" text-anchor="middle">Workflows</text>
+  <text x="355" y="136" font-size="10.5" fill="#6d28d9" text-anchor="middle">durable orchestration · per-run brain</text>
+
+  <!-- Durable Object -->
+  <rect x="250" y="186" width="210" height="64" rx="9" fill="#fce7f3" stroke="#db2777" stroke-width="1.6" filter="url(#sh)"/>
+  <text x="355" y="211" font-size="14" font-weight="700" fill="#9d174d" text-anchor="middle">Durable Object · per tenant</text>
+  <text x="355" y="229" font-size="10.5" fill="#be185d" text-anchor="middle">lease · delta cursor</text>
+  <text x="355" y="243" font-size="10.5" fill="#be185d" text-anchor="middle">rate governor (token bucket)</text>
+
+  <!-- Queues -->
+  <rect x="250" y="282" width="210" height="56" rx="9" fill="#cffafe" stroke="#0891b2" stroke-width="1.6" filter="url(#sh)"/>
+  <text x="355" y="306" font-size="14" font-weight="700" fill="#155e75" text-anchor="middle">Queues</text>
+  <text x="355" y="323" font-size="10.5" fill="#0e7490" text-anchor="middle">fan-out: 1 job / mailbox · drive · page</text>
+
+  <!-- Consumers -->
+  <rect x="250" y="370" width="210" height="64" rx="9" fill="#ffedd5" stroke="#ea580c" stroke-width="1.6" filter="url(#sh)"/>
+  <text x="355" y="396" font-size="14" font-weight="700" fill="#9a3412" text-anchor="middle">Queue Consumers (Workers)</text>
+  <text x="355" y="414" font-size="10.5" fill="#c2410c" text-anchor="middle">Graph pulls · chunked / ranged</text>
+  <text x="355" y="428" font-size="10.5" fill="#c2410c" text-anchor="middle">downloads · retry on 429</text>
+
+  <!-- Storage label -->
+  <text x="44" y="468" font-size="11" font-weight="600" fill="#94a3b8">STORAGE LAYER</text>
+
+  <!-- R2 -->
+  <rect x="44" y="478" width="176" height="88" rx="9" fill="#fef3c7" stroke="#d97706" stroke-width="1.6" filter="url(#sh)"/>
+  <text x="132" y="502" font-size="14" font-weight="700" fill="#92400e" text-anchor="middle">R2</text>
+  <text x="132" y="520" font-size="10.5" fill="#b45309" text-anchor="middle">encrypted blobs:</text>
+  <text x="132" y="534" font-size="10.5" fill="#b45309" text-anchor="middle">emails · files · attachments</text>
+  <text x="132" y="552" font-size="10.5" font-weight="600" fill="#b45309" text-anchor="middle">Object Lock (WORM)</text>
+
+  <!-- D1 -->
+  <rect x="236" y="478" width="176" height="88" rx="9" fill="#dbeafe" stroke="#2563eb" stroke-width="1.6" filter="url(#sh)"/>
+  <text x="324" y="502" font-size="14" font-weight="700" fill="#1e40af" text-anchor="middle">D1</text>
+  <text x="324" y="520" font-size="10.5" fill="#1d4ed8" text-anchor="middle">catalog / index</text>
+  <text x="324" y="534" font-size="10.5" fill="#1d4ed8" text-anchor="middle">item → R2 key · versions</text>
+  <text x="324" y="552" font-size="10.5" fill="#1d4ed8" text-anchor="middle">restore points · run history</text>
+
+  <!-- KV -->
+  <rect x="428" y="478" width="168" height="88" rx="9" fill="#dcfce7" stroke="#16a34a" stroke-width="1.6" filter="url(#sh)"/>
+  <text x="512" y="502" font-size="14" font-weight="700" fill="#166534" text-anchor="middle">KV</text>
+  <text x="512" y="522" font-size="10.5" fill="#15803d" text-anchor="middle">per-tenant config</text>
+  <text x="512" y="537" font-size="10.5" fill="#15803d" text-anchor="middle">feature flags</text>
+  <text x="512" y="552" font-size="10.5" fill="#15803d" text-anchor="middle">hot lookups</text>
+
+  <!-- Secrets -->
+  <rect x="612" y="478" width="176" height="88" rx="9" fill="#e2e8f0" stroke="#475569" stroke-width="1.6" filter="url(#sh)"/>
+  <text x="700" y="502" font-size="14" font-weight="700" fill="#334155" text-anchor="middle">Secrets Store</text>
+  <text x="700" y="522" font-size="10.5" fill="#475569" text-anchor="middle">app registration secret</text>
+  <text x="700" y="537" font-size="10.5" fill="#475569" text-anchor="middle">+ per-tenant refresh</text>
+  <text x="700" y="552" font-size="10.5" fill="#475569" text-anchor="middle">tokens (encrypted)</text>
+
+  <!-- M365 inner: tenant -->
+  <rect x="844" y="92" width="216" height="40" rx="8" fill="#ffffff" stroke="#2563eb" stroke-width="1.4" filter="url(#sh)"/>
+  <text x="952" y="117" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="middle">Microsoft 365 Tenant</text>
+
+  <!-- M365 inner: Graph -->
+  <rect x="844" y="150" width="216" height="234" rx="8" fill="#ffffff" stroke="#2563eb" stroke-width="1.4" filter="url(#sh)"/>
+  <text x="952" y="174" font-size="13.5" font-weight="700" fill="#1e3a8a" text-anchor="middle">Microsoft Graph API</text>
+  <line x1="860" y1="186" x2="1044" y2="186" stroke="#bfdbfe" stroke-width="1.2"/>
+  <text x="862" y="208" font-size="11" fill="#1e3a8a">• Mail — messages, attachments</text>
+  <text x="862" y="230" font-size="11" fill="#1e3a8a">• OneDrive / SharePoint files</text>
+  <text x="862" y="252" font-size="11" fill="#1e3a8a">• Teams / chats</text>
+  <text x="862" y="274" font-size="11" fill="#1e3a8a">• Calendar / contacts</text>
+  <text x="862" y="296" font-size="11" fill="#1e3a8a">• delta queries (incremental)</text>
+  <line x1="860" y1="312" x2="1044" y2="312" stroke="#bfdbfe" stroke-width="1.2"/>
+  <text x="862" y="333" font-size="10.5" font-style="italic" fill="#64748b">Throttles per app · tenant ·</text>
+  <text x="862" y="348" font-size="10.5" font-style="italic" fill="#64748b">service. 429 + Retry-After is</text>
+  <text x="862" y="363" font-size="10.5" font-style="italic" fill="#64748b">the dominant constraint.</text>
+
+  <!-- Legend / run sequence -->
+  <rect x="828" y="478" width="248" height="212" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.4"/>
+  <text x="844" y="502" font-size="13" font-weight="700" fill="#0f172a">Backup run</text>
+  <text x="844" y="525" font-size="11" fill="#334155">1 · Cron starts a Workflow per tenant</text>
+  <text x="844" y="548" font-size="11" fill="#334155">2 · Workflow gets lease + delta cursor</text>
+  <text x="858" y="562" font-size="11" fill="#334155">from the tenant Durable Object</text>
+  <text x="844" y="585" font-size="11" fill="#334155">3 · Fan out 1 job / mailbox · drive</text>
+  <text x="858" y="599" font-size="11" fill="#334155">to Queues</text>
+  <text x="844" y="622" font-size="11" fill="#334155">4 · Consumers pull deltas from Graph,</text>
+  <text x="858" y="636" font-size="11" fill="#334155">rate-governed by the DO</text>
+  <text x="844" y="659" font-size="11" fill="#334155">5 · Stream blobs → R2, index → D1</text>
+  <text x="844" y="682" font-size="11" fill="#334155">6 · Write restore point, release lease</text>
+
+  <!-- Arrows: internal chain -->
+  <line x1="168" y1="122" x2="246" y2="122" stroke="#475569" stroke-width="1.6" marker-end="url(#arr)"/>
+  <text x="207" y="115" font-size="10" fill="#64748b" text-anchor="middle">start</text>
+
+  <line x1="355" y1="154" x2="355" y2="182" stroke="#475569" stroke-width="1.6" marker-end="url(#arr)"/>
+  <text x="362" y="172" font-size="10" fill="#64748b" text-anchor="start">lease + delta tokens</text>
+
+  <line x1="355" y1="250" x2="355" y2="278" stroke="#475569" stroke-width="1.6" marker-end="url(#arr)"/>
+  <text x="362" y="268" font-size="10" fill="#64748b" text-anchor="start">fan-out plan</text>
+
+  <line x1="355" y1="338" x2="355" y2="366" stroke="#475569" stroke-width="1.6" marker-end="url(#arr)"/>
+  <text x="362" y="356" font-size="10" fill="#64748b" text-anchor="start">jobs (rate-limited)</text>
+
+  <!-- Consumers <-> Graph -->
+  <path d="M462,388 C620,330 720,270 842,250" fill="none" stroke="#475569" stroke-width="1.6" marker-end="url(#arr)"/>
+  <text x="648" y="300" font-size="10" fill="#475569" text-anchor="middle">delta pull · ranged GET</text>
+
+  <path d="M842,300 C720,360 620,408 462,416" fill="none" stroke="#475569" stroke-width="1.6" marker-end="url(#arr)"/>
+  <text x="648" y="392" font-size="10" fill="#475569" text-anchor="middle">items + 429 / Retry-After</text>
+
+  <!-- Consumers -> storage -->
+  <path d="M300,434 C220,452 160,460 128,474" fill="none" stroke="#475569" stroke-width="1.6" marker-end="url(#arr)"/>
+  <text x="168" y="455" font-size="10" fill="#475569" text-anchor="middle">stream → R2 (multipart)</text>
+
+  <line x1="345" y1="434" x2="328" y2="474" stroke="#475569" stroke-width="1.6" marker-end="url(#arr)"/>
+  <text x="392" y="458" font-size="10" fill="#475569" text-anchor="middle">index rows</text>
+
+  <!-- Restore path -->
+  <path d="M412,520 C600,560 742,500 842,362" fill="none" stroke="#059669" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#arrG)"/>
+  <text x="612" y="556" font-size="10.5" font-weight="600" fill="#059669" text-anchor="middle">restore: read index → fetch blobs → write back</text>
+</svg>
