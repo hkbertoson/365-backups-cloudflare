@@ -52,7 +52,12 @@
 				"queue": "backup-queue",
 				"max_batch_size": 10,
 				"max_batch_timeout": 5,
-				"max_retries": 5,
+				// Flow-control (token denial) re-enqueues fresh messages instead of
+				// retrying, so retries are reserved for genuine errors — a high
+				// ceiling here only affects truly failing items before the DLQ.
+				"max_retries": 25,
+				// Bound the re-send herd well under the 5,000 msg/s/queue ceiling.
+				"max_concurrency": 10,
 				"dead_letter_queue": "backup-dlq",
 			},
 		],

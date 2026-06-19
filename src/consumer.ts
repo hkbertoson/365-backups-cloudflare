@@ -21,10 +21,22 @@ export async function handleBackupBatch(batch: MessageBatch<BackupJob>, env: Env
 		const coordinator = tenantStub(env, job.tenantId);
 		const key = resourceKey(job.resource);
 
-		// Spend a rate token before touching Graph. No token -> back off & retry.
+		// Spend a rate token before touching Graph. Token denial is flow control,
+		// not failure — under heavy fan-out it's the common case. retry() would
+		// charge it to max_retries and dead-letter healthy work, so instead ack
+		// this delivery and re-enqueue a FRESH copy (resetting the attempt count).
+		// Jitter de-syncs the denied herd so they don't all re-arrive in lockstep.
 		const waitMs = await coordinator.takeToken();
 		if (waitMs > 0) {
-			msg.retry({ delaySeconds: Math.ceil(waitMs / 1000) });
+			const delaySeconds = Math.ceil(waitMs / 1000) + Math.floor(Math.random() * 6);
+			try {
+				await env.BACKUP_QUEUE.send(job, { delaySeconds });
+				msg.ack();
+			} catch {
+				// Rare queue-send failure (transient / throughput ceiling): fall back
+				// to retry so the message stays alive instead of dropping the batch.
+				msg.retry({ delaySeconds });
+			}
 			continue;
 		}
 
