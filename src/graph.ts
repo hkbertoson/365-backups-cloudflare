@@ -309,7 +309,10 @@ export function createGraphClient(env: Env): GraphClient {
 			// Reconstructing the source folder tree is future work.
 			// Owner is the mailbox user id stamped by mapMessage — not derivable
 			// from the (folder-scoped) resourceKey.
-			const ownerId = item.metadata?.ownerId as string;
+			const ownerId = item.metadata?.ownerId as string | undefined;
+			if (!ownerId) {
+				throw new GraphError(500, 'missingOwnerId', `item ${item.id} missing ownerId in metadata`);
+			}
 			const buf = body instanceof ArrayBuffer ? body : await streamToBuffer(body);
 			await authed(tenantId, `${GRAPH}/users/${ownerId}/messages`, {
 				method: 'POST',
