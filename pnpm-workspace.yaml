@@ -6,3 +6,11 @@ allowBuilds:
   workerd: true
   sharp: true
   better-sqlite3: true
+
+# The active pnpm minimumReleaseAge supply-chain policy rejects packages
+# published within its cutoff window. The docs site (apps/docs) needs a current
+# sharp release for image processing; allow sharp + its @img/* platform binaries
+# through so a fresh `pnpm install` passes the policy.
+minimumReleaseAgeExclude:
+  - sharp
+  - '@img/*'
