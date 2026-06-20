@@ -1,0 +1,40 @@
+---
+title: m365vault
+description: A Microsoft 365 backup engine on Cloudflare — point-in-time restore for mail and files.
+template: splash
+hero:
+  tagline: Pull tenant data from Microsoft Graph on a schedule, store the bytes in R2, catalog them in Durable Object SQLite, and restore any item to any past point in time.
+  actions:
+    - text: Get started
+      link: /getting-started/
+      icon: right-arrow
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/hkbertoson/365-backups-cloudflare
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## What is m365vault?
+
+m365vault backs up a customer's Microsoft 365 organization to Cloudflare's
+edge. A daily Workflow discovers each tenant's mail folders and drives, fans the
+work out across a Queue, content-addresses the bytes into R2, and records a
+temporal catalog so any item can be restored as it existed at any past run.
+
+<CardGrid>
+	<Card title="Incremental by delta" icon="seti:db">
+		Each mail folder and drive is tracked by a Microsoft Graph delta cursor, so nightly runs only fetch what changed.
+	</Card>
+	<Card title="Point-in-time restore" icon="seti:clock">
+		A run *is* a restore point. Temporal item versions resolve any `started_at` instant back to the exact bytes that were live then.
+	</Card>
+	<Card title="Per-tenant isolation" icon="seti:lock">
+		Every tenant gets its own Durable Object coordinator and private SQLite catalog — dedupe and rate governance never cross tenant lines.
+	</Card>
+	<Card title="Content-addressed storage" icon="seti:image">
+		Bytes are keyed by content hash with reference counting, so unchanged items dedupe and retention GC can reclaim them safely.
+	</Card>
+</CardGrid>
