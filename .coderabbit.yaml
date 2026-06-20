@@ -30,8 +30,8 @@ reviews:
   path_filters:
     - '!**/pnpm-lock.yaml'
     - '!worker-configuration.d.ts'
-		- '!**/wrangler.jsonc'
-		- '!**/docs/*.md'
+    - '!**/wrangler.jsonc'
+    - '!**/docs/*.md'
     - '!**/*.svg'
   path_instructions:
     - path: 'src/**/*.ts'
