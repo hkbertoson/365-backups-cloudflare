@@ -13,7 +13,7 @@ authentication powered by [better-auth](https://www.better-auth.com).
 
 ## Layout
 
-```
+```text
 src/
   lib/
     auth.ts          # better-auth server (SQLite via better-sqlite3) — dev/server only

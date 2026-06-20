@@ -16,13 +16,21 @@ export function SignupForm({ onSuccess }: SignupFormProps) {
 		event.preventDefault();
 		setError(null);
 		setPending(true);
-		const { error: signUpError } = await authClient.signUp.email({ name, email, password });
-		setPending(false);
-		if (signUpError) {
-			setError(signUpError.message ?? 'Sign up failed');
-			return;
+		try {
+			// better-auth resolves to { data, error } for auth failures (it does not
+			// throw), but the request can still reject on a network/fetch error — so
+			// the finally block guarantees the pending state is always cleared.
+			const { error: signUpError } = await authClient.signUp.email({ name, email, password });
+			if (signUpError) {
+				setError(signUpError.message ?? 'Sign up failed');
+				return;
+			}
+			onSuccess?.();
+		} catch (err) {
+			setError(err instanceof Error ? err.message : 'Sign up failed');
+		} finally {
+			setPending(false);
 		}
-		onSuccess?.();
 	}
 
 	return (

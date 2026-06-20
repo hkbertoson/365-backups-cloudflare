@@ -15,15 +15,21 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
 		event.preventDefault();
 		setError(null);
 		setPending(true);
-		// better-auth resolves to { data, error } — it does not throw on auth
-		// failures, so branch on `error` rather than try/catch.
-		const { error: signInError } = await authClient.signIn.email({ email, password });
-		setPending(false);
-		if (signInError) {
-			setError(signInError.message ?? 'Sign in failed');
-			return;
+		try {
+			// better-auth resolves to { data, error } for auth failures (it does not
+			// throw), but the request can still reject on a network/fetch error — so
+			// the finally block guarantees the pending state is always cleared.
+			const { error: signInError } = await authClient.signIn.email({ email, password });
+			if (signInError) {
+				setError(signInError.message ?? 'Sign in failed');
+				return;
+			}
+			onSuccess?.();
+		} catch (err) {
+			setError(err instanceof Error ? err.message : 'Sign in failed');
+		} finally {
+			setPending(false);
 		}
-		onSuccess?.();
 	}
 
 	return (
