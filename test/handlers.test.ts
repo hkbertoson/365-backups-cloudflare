@@ -48,6 +48,9 @@ describe('worker handler (src/index)', () => {
 
 	it('backup cron starts one workflow per enabled tenant only', async () => {
 		await createTenantsTable();
+		// Storage is not reset between tests in this pool, so clear any rows from
+		// a prior run before seeding — keeps the toHaveBeenCalledTimes(2) exact.
+		await env.DB.prepare('DELETE FROM tenants').run();
 		await insertTenant('t-a', 1);
 		await insertTenant('t-b', 1);
 		await insertTenant('t-c', 0);

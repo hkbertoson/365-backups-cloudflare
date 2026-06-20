@@ -86,10 +86,10 @@ describe('runRetention (D1 + DO + R2 integration)', () => {
 	});
 
 	it('expires closed versions and deletes orphaned blobs for an enabled tenant', async () => {
-		await insertTenant('tenant-gc', -1);
-		await seedClosedVersion('tenant-gc', 'k1', 3);
+		await insertTenant('tenant-gc-expire', -1);
+		await seedClosedVersion('tenant-gc-expire', 'k-expire', 3);
 
-		expect(await env.BLOBS.get('k1')).not.toBeNull();
+		expect(await env.BLOBS.get('k-expire')).not.toBeNull();
 
 		const result = await runRetention(env);
 
@@ -98,34 +98,34 @@ describe('runRetention (D1 + DO + R2 integration)', () => {
 		expect(result.bytesReclaimed).toBe(3);
 
 		// The R2 object backing the dead blob is gone.
-		expect(await env.BLOBS.get('k1')).toBeNull();
+		expect(await env.BLOBS.get('k-expire')).toBeNull();
 
 		// The catalog row was removed (no surviving zero-ref blob to re-collect).
-		expect(await stub('tenant-gc').blobExists('h1')).toBeNull();
+		expect(await stub('tenant-gc-expire').blobExists('h1')).toBeNull();
 	});
 
 	it('honors the explicit single-tenant form runRetention(env, tenantId)', async () => {
-		await insertTenant('tenant-gc', -1);
-		await seedClosedVersion('tenant-gc', 'k1', 3);
+		await insertTenant('tenant-gc-single', -1);
+		await seedClosedVersion('tenant-gc-single', 'k-single', 3);
 
-		const result = await runRetention(env, 'tenant-gc');
+		const result = await runRetention(env, 'tenant-gc-single');
 
 		expect(result.versionsExpired).toBeGreaterThanOrEqual(1);
 		expect(result.blobsDeleted).toBeGreaterThanOrEqual(1);
 		expect(result.bytesReclaimed).toBe(3);
-		expect(await env.BLOBS.get('k1')).toBeNull();
+		expect(await env.BLOBS.get('k-single')).toBeNull();
 	});
 
 	it('is a no-op when the cutoff is in the past (positive retention)', async () => {
 		// retention_days = 90 -> cutoff = now - 90d, far before any valid_to_ts.
 		await insertTenant('tenant-keep', 90);
-		await seedClosedVersion('tenant-keep', 'k1', 3);
+		await seedClosedVersion('tenant-keep', 'k-keep', 3);
 
 		const result = await runRetention(env);
 
 		expect(result).toEqual({ versionsExpired: 0, blobsDeleted: 0, bytesReclaimed: 0 });
 		// The closed version survives, so its blob's R2 object is untouched.
-		expect(await env.BLOBS.get('k1')).not.toBeNull();
+		expect(await env.BLOBS.get('k-keep')).not.toBeNull();
 		expect(await stub('tenant-keep').blobExists('h1')).not.toBeNull();
 	});
 
