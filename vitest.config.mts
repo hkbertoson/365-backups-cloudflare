@@ -7,6 +7,12 @@ import { defineConfig } from 'vitest/config';
 // (database_id, store_id, ...) are irrelevant since storage is local.
 // (.mts so Vite loads this ESM-only plugin as a native module, not via require.)
 export default defineConfig({
+	// Scope to the worker's own suite. Workspace packages (apps/*) run their own
+	// Vitest with their own environment (e.g. apps/web uses jsdom), so the root
+	// Workers pool must not glob their *.test.tsx files into workerd.
+	test: {
+		include: ['test/**/*.test.ts'],
+	},
 	plugins: [
 		cloudflareTest({
 			wrangler: { configPath: './wrangler.jsonc' },
