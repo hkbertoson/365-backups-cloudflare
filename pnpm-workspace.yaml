@@ -1,4 +1,8 @@
+packages:
+  - 'apps/*'
+
 allowBuilds:
   esbuild: true
   workerd: true
   sharp: true
+  better-sqlite3: true

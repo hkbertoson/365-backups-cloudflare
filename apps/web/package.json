@@ -1,0 +1,35 @@
+{
+	"name": "@m365vault/web",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "vite",
+		"build": "tsc --noEmit && vite build",
+		"preview": "vite preview",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run",
+		"test:watch": "vitest"
+	},
+	"dependencies": {
+		"better-auth": "^1.6.19",
+		"better-sqlite3": "^12.2.0",
+		"react": "^19.1.0",
+		"react-dom": "^19.1.0",
+		"react-router-dom": "^7.6.0"
+	},
+	"devDependencies": {
+		"@testing-library/jest-dom": "^6.6.3",
+		"@testing-library/react": "^16.3.0",
+		"@testing-library/user-event": "^14.6.1",
+		"@types/better-sqlite3": "^7.6.12",
+		"@types/node": "^22.10.0",
+		"@types/react": "^19.1.0",
+		"@types/react-dom": "^19.1.0",
+		"@vitejs/plugin-react": "^4.4.1",
+		"jsdom": "^26.1.0",
+		"typescript": "^5.7.3",
+		"vite": "^6.3.5",
+		"vitest": "^4.1.9"
+	}
+}
